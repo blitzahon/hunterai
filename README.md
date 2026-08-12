@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # RAG Agent
 
 A retrieval-augmented generation agent built from scratch — no LangChain, no
