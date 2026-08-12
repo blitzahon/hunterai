@@ -1,0 +1,58 @@
+[
+  {
+    "id": "106f91c8-fbf2-4cf7-91f0-51ad960954ec",
+    "type": "index",
+    "payload": {
+      "files": [
+        "sample.txt"
+      ]
+    },
+    "status": "running",
+    "created_at": "2026-08-12T10:15:46.380076Z",
+    "updated_at": "2026-08-12T10:16:38.875941Z",
+    "result": null,
+    "error": null
+  },
+  {
+    "id": "19839edc-74b1-477e-8898-a19d3bf7e460",
+    "type": "index",
+    "payload": {
+      "files": [
+        "sample.txt"
+      ]
+    },
+    "status": "running",
+    "created_at": "2026-08-12T10:16:38.912643Z",
+    "updated_at": "2026-08-12T11:10:46.702518Z",
+    "result": null,
+    "error": null
+  },
+  {
+    "id": "a966a6bc-2b56-4707-a903-a935aba5054f",
+    "type": "index",
+    "payload": {
+      "files": [
+        "sample.txt"
+      ]
+    },
+    "status": "running",
+    "created_at": "2026-08-12T11:10:50.135140Z",
+    "updated_at": "2026-08-12T11:11:06.926157Z",
+    "result": null,
+    "error": null
+  },
+  {
+    "id": "b356cb08-f866-4ab1-81ef-78572261eb6c",
+    "type": "index",
+    "payload": {
+      "files": [
+        "sample.txt"
+      ]
+    },
+    "status": "pending",
+    "created_at": "2026-08-12T11:11:07.116922Z",
+    "updated_at": "2026-08-12T11:11:07.116929Z",
+    "result": null,
+    "error": null
+  }
+]
