@@ -116,7 +116,4 @@ Open http://localhost:5173.
 - Add a reranking step between retrieval and generation for precision
 - Swap `scripts/ask.py` for a FastAPI app in a new `api/` folder — nothing in
   `rag/` needs to change
-=======
-"# hunterai" 
->>>>>>> 98585f4e6a60e6863026485e668074dcb1c54372
-"# hunterai" 
+
