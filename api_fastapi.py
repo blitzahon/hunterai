@@ -20,17 +20,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from werkzeug.utils import secure_filename
 
 from config import settings
-from rag.agent import RAGAgent
-from rag.embedder import Embedder
-from rag.retriever import Retriever
-from rag.vector_store import VectorStore
 from services.job_queue import enqueue_job, get_job, list_jobs
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
+    stream=sys.stdout,
+    force=True
 )
 logger = logging.getLogger(__name__)
 
@@ -78,8 +75,43 @@ class ReindexResponse(BaseModel):
     chunks: int
     index_path: str
 
-# Global agent instance
-agent = None
+# Global agent instance - lazy loaded
+_agent = None
+
+def get_agent():
+    """Lazy-load the RAG agent on first use to avoid hanging at startup."""
+    global _agent
+    if _agent is None:
+        logger.info("🤖 Initializing RAG agent (lazy-loaded)...")
+        if not os.path.exists(INDEX_PATH):
+            logger.warning(f"⚠️ Index not found at {INDEX_PATH}")
+            raise FileNotFoundError("No index found. Run scripts/build_index.py first.")
+
+        try:
+            from rag.agent import RAGAgent
+            from rag.embedder import Embedder
+            from rag.retriever import Retriever
+            from rag.vector_store import VectorStore
+            
+            logger.info("📥 Loading embedder...")
+            embedder = Embedder()
+            logger.info("✅ Embedder loaded")
+            
+            logger.info("📥 Loading vector store...")
+            store = VectorStore.load(INDEX_PATH)
+            logger.info("✅ Vector store loaded")
+            
+            logger.info("📥 Initializing retriever...")
+            retriever = Retriever(embedder, store)
+            logger.info("✅ Retriever initialized")
+            
+            logger.info("📥 Initializing agent...")
+            _agent = RAGAgent(retriever)
+            logger.info("✅ Agent initialized")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize agent: {e}", exc_info=True)
+            raise
+    return _agent
 
 def create_app() -> FastAPI:
     app = FastAPI(title="HunterAI RAG API", version="1.0.0")
@@ -104,7 +136,6 @@ def create_app() -> FastAPI:
             logger.info("✅ Database initialized")
         except Exception as e:
             logger.warning(f"⚠️ Database initialization failed (continuing): {e}")
-            pass
 
     def verify_api_key(authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)) -> Optional[dict]:
         """Dependency to verify API key when DB is configured."""
@@ -132,39 +163,10 @@ def create_app() -> FastAPI:
 
         return ws
 
-    def get_agent():
-        global agent
-        if agent is None:
-            logger.info("🤖 Initializing RAG agent...")
-            if not os.path.exists(INDEX_PATH):
-                logger.warning(f"⚠️ Index not found at {INDEX_PATH}")
-                raise FileNotFoundError("No index found. Run scripts/build_index.py first.")
-
-            try:
-                logger.info("📥 Loading embedder...")
-                embedder = Embedder()
-                logger.info("✅ Embedder loaded")
-                
-                logger.info("📥 Loading vector store...")
-                store = VectorStore.load(INDEX_PATH)
-                logger.info("✅ Vector store loaded")
-                
-                logger.info("📥 Initializing retriever...")
-                retriever = Retriever(embedder, store)
-                logger.info("✅ Retriever initialized")
-                
-                logger.info("📥 Initializing agent...")
-                agent = RAGAgent(retriever)
-                logger.info("✅ Agent initialized")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize agent: {e}", exc_info=True)
-                raise
-        return agent
-
     @app.on_event("startup")
     async def startup_event():
-        """Log startup completion."""
-        logger.info("🎉 FastAPI startup complete")
+        """Log startup completion - don't load agent here."""
+        logger.info("🎉 FastAPI startup complete - agent will load on first request")
 
     @app.get("/")
     async def index():
