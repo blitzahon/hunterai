@@ -7,6 +7,8 @@ it'll talk to this backend via CORS on port 5000.
 """
 
 import os
+import sys
+import logging
 from typing import Optional
 from pydantic import BaseModel
 
@@ -23,6 +25,14 @@ from rag.embedder import Embedder
 from rag.retriever import Retriever
 from rag.vector_store import VectorStore
 from services.job_queue import enqueue_job, get_job, list_jobs
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -74,6 +84,8 @@ agent = None
 def create_app() -> FastAPI:
     app = FastAPI(title="HunterAI RAG API", version="1.0.0")
     
+    logger.info("🚀 Initializing FastAPI app...")
+    
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -85,11 +97,13 @@ def create_app() -> FastAPI:
 
     # Initialize auth DB if configured
     if settings.db_url:
+        logger.info(f"📦 Initializing database: {settings.db_url}")
         try:
             from services.auth import init_db
             init_db(settings.db_url)
-        except Exception:
-            # auth DB initialization should not prevent app startup; log and continue
+            logger.info("✅ Database initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Database initialization failed (continuing): {e}")
             pass
 
     def verify_api_key(authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)) -> Optional[dict]:
@@ -121,14 +135,36 @@ def create_app() -> FastAPI:
     def get_agent():
         global agent
         if agent is None:
+            logger.info("🤖 Initializing RAG agent...")
             if not os.path.exists(INDEX_PATH):
+                logger.warning(f"⚠️ Index not found at {INDEX_PATH}")
                 raise FileNotFoundError("No index found. Run scripts/build_index.py first.")
 
-            embedder = Embedder()
-            store = VectorStore.load(INDEX_PATH)
-            retriever = Retriever(embedder, store)
-            agent = RAGAgent(retriever)
+            try:
+                logger.info("📥 Loading embedder...")
+                embedder = Embedder()
+                logger.info("✅ Embedder loaded")
+                
+                logger.info("📥 Loading vector store...")
+                store = VectorStore.load(INDEX_PATH)
+                logger.info("✅ Vector store loaded")
+                
+                logger.info("📥 Initializing retriever...")
+                retriever = Retriever(embedder, store)
+                logger.info("✅ Retriever initialized")
+                
+                logger.info("📥 Initializing agent...")
+                agent = RAGAgent(retriever)
+                logger.info("✅ Agent initialized")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize agent: {e}", exc_info=True)
+                raise
         return agent
+
+    @app.on_event("startup")
+    async def startup_event():
+        """Log startup completion."""
+        logger.info("🎉 FastAPI startup complete")
 
     @app.get("/")
     async def index():
@@ -149,6 +185,7 @@ def create_app() -> FastAPI:
             answer = get_agent().answer(question, history=history)
             return AskResponse(answer=answer)
         except Exception as e:
+            logger.error(f"❌ Error answering question: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"The assistant could not answer that question. {str(e)}")
 
     @app.get("/api/health", response_model=HealthResponse)
@@ -218,6 +255,7 @@ def create_app() -> FastAPI:
                 documents=saved_names,
             )
         except Exception as e:
+            logger.error(f"❌ Failed to enqueue indexing job: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to enqueue indexing job. {str(e)}")
 
     @app.post("/api/reindex", response_model=ReindexResponse)
@@ -232,6 +270,7 @@ def create_app() -> FastAPI:
                 index_path=result.get("index_path"),
             )
         except Exception as e:
+            logger.error(f"❌ Index rebuild failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Index rebuild failed. {str(e)}")
 
     @app.get("/api/jobs")
@@ -256,4 +295,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info(f"Starting server on {settings.host}:{settings.port}")
     uvicorn.run(app, host=settings.host, port=settings.port)
