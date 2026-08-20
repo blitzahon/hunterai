@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "api.py"]
+CMD ["uvicorn", "api_fastapi:app", "--host", "0.0.0.0", "--port", "5000"]
